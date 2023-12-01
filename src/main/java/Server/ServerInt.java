@@ -12,6 +12,6 @@ public interface ServerInt extends Remote {
     boolean registerClient(ClientInt client) throws RemoteException;
     ClientInt addConnection(ClientInt client, String nameOfOtherClient) throws RemoteException, NoSuchAlgorithmException;
     List<String> getSendingClients(ClientInt client) throws RemoteException;
-    void sendMessage(ClientInt client, String message) throws RemoteException;
-
+    void sendMessage(int _tag, int _id, String encryptedMessage) throws RemoteException, NoSuchAlgorithmException;
+    String receiveMessage(int tag, int id) throws RemoteException, NoSuchAlgorithmException;
 }

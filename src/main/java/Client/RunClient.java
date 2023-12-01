@@ -3,7 +3,9 @@ package Client;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.security.InvalidKeyException;
@@ -18,12 +20,15 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 public class RunClient {
+
+    // TODO ~ Thread waar er continue wordt gekeken of er nieuwe berichten zijn toegekomen
     public static void main(String[] args) throws IOException, NotBoundException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
         new RunClient();
 
         Registry registry = LocateRegistry.getRegistry("localhost", 1099);
         ServerInt server = (ServerInt) registry.lookup("Server");
         Scanner scanner = new Scanner(System.in);
+        Thread thread;
 
         Client client = null;
         Boolean registered = false;
@@ -37,6 +42,9 @@ public class RunClient {
                 registered = true;
             }
         }
+
+        thread = new Thread(client);
+        thread.start();
         System.out.println("Client running...");
 
         // Client toevoegen
@@ -50,7 +58,9 @@ public class RunClient {
         } else {
             System.out.println("Succesvol verbonden met gebruiker " + nameOtherClient);
         }
-
+        // Start thread that receives messages
+        thread = new Thread(client);
+        thread.start();
 
         while(true){
             System.out.println("1. Client toevoegen \n" +
@@ -58,45 +68,65 @@ public class RunClient {
                     "0. Afsluiten");
             System.out.print("Keuze: ");
             String choice = scanner.nextLine();
-
-            switch(choice){
-                case "1":
-                    System.out.print("Naam andere client: ");
-                    nameOtherClient = scanner.nextLine();
-                    clientBackup = new Client(client);
-                    client = (Client) server.addConnection(client, nameOtherClient);
-                    if(client == null){
-                        System.out.println("Connectie opzetten met gebruiker is mislukt");
-                        client = new Client(clientBackup);
-                    } else {
-                        System.out.println("Succesvol verbonden met gebruiker " + nameOtherClient);
-                    }
-
-                case "2":
-                    if(server.getSendingClients(client).isEmpty()){
-                        System.out.println("Nog geen verbindingen opgesteld met andere clients");
-                        break;
-                    } else {
-                        int i = 1;
-                        for(String name : server.getSendingClients(client)){
-                            System.out.println(i + ". " + name);
-                            i++;
+            int choiceInt;
+            try{
+                choiceInt = Integer.parseInt(choice);
+                switch(choiceInt){
+                    case 1:
+                        thread.stop();
+                        System.out.print("Naam andere client: ");
+                        nameOtherClient = scanner.nextLine();
+                        clientBackup = new Client(client);
+                        client = (Client) server.addConnection(client, nameOtherClient);
+                        if(client == null){
+                            System.out.println("Connectie opzetten met gebruiker is mislukt");
+                            client = new Client(clientBackup);
+                        } else {
+                            System.out.println("Succesvol verbonden met gebruiker " + nameOtherClient);
                         }
-                        System.out.println("Kies gebruiker waarmee je wilt sturen (nummer)");
-                        System.out.print("Keuze: ");
-                        String numberOfClient = scanner.nextLine();
-                        String clientToSendTo = server.getSendingClients(client).get(Integer.parseInt(numberOfClient)-1);
-                        System.out.println("Aan het sturen met " + clientToSendTo + "...");
-                        System.out.print("Bericht: ");
-                        String message = scanner.nextLine();
-                        if(message.equals("\u001b")){
+                        thread = new Thread(client);
+                        thread.start();
+                        break;
+                    case 2:
+                        if(server.getSendingClients(client).isEmpty()){
+                            System.out.println("Nog geen verbindingen opgesteld met andere clients");
                             break;
                         } else {
-                            server.sendMessage(client, message);
+                            int i = 1;
+                            for(String name : server.getSendingClients(client)){
+                                System.out.println(i + ". " + name);
+                                i++;
+                            }
+                            System.out.println("Kies gebruiker waarmee je wilt sturen (nummer)");
+                            System.out.print("Keuze: ");
+                            String numberOfClient = scanner.nextLine();
+                            int numberOfClientInt;
+                            try{
+                                numberOfClientInt = Integer.parseInt(numberOfClient);
+                            } catch (NumberFormatException e) {
+                                break;
+                            }
+                            String clientToSendTo = server.getSendingClients(client).get(numberOfClientInt-1);
+                            System.out.println("Aan het sturen met " + clientToSendTo + "...");
+                            sendMessages(client, clientToSendTo, scanner);
+                            break;
                         }
-                    }
-                case "0":
-                    System.exit(0);
+                    case 0:
+                        System.exit(0);
+                }
+            } catch (NumberFormatException e) {
+            }
+        }
+    }
+
+    private static void sendMessages(Client client, String clientToSendTo, Scanner scanner) throws IllegalBlockSizeException, UnsupportedEncodingException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeySpecException, RemoteException, InvalidKeyException {
+        while(true){
+            System.out.print("Bericht: ");
+            String message = scanner.nextLine();
+            if(message.equals("exit")){
+                return;
+            } else {
+                client.sendMessage(clientToSendTo, message);
             }
         }
     }

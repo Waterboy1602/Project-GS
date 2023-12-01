@@ -9,21 +9,22 @@ import java.rmi.RemoteException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
-public class Client implements ClientInt, Serializable {
+public class Client implements ClientInt, Serializable, Runnable {
     private static final long serialVersionUID = -4257989786795911819L;
     private final int N = 9999;
 
 //    private final ServerInt server;
     private HashMap<String, SecretKey> listOfKeysSending;
     private HashMap<String, int[]> listOfTagIdSending;
+    private HashMap<String, byte[]> listOfSaltSending;
+    private HashMap<String, SecretKey> nextListOfKeysSending;
+    private HashMap<String, int[]> nextListOfTagIdSending;
+
     private List<Client> receivingFromClients;
     private List<String> sendingToClients;
     private String name;
@@ -33,7 +34,8 @@ public class Client implements ClientInt, Serializable {
     private int keySize = 256;
     private int iterations = 10;
     private SecretKey symmetricKey;
-    private int idx;
+    private byte[] salt;
+    private int id;
     private int tag;
     private Random random = new Random(9);
 
@@ -43,15 +45,19 @@ public class Client implements ClientInt, Serializable {
         this.receivingFromClients = new ArrayList<>();
         this.sendingToClients =  new ArrayList<>();
         this.listOfKeysSending = new HashMap<>();
+        this.listOfSaltSending = new HashMap<>();
         this.listOfTagIdSending = new HashMap<>();
+        this.nextListOfKeysSending = new HashMap<>();
+        this.nextListOfTagIdSending = new HashMap<>();
     }
 
-    Client(String name, SecretKey symmetricKey, int tag, int idx){
+    Client(String name, SecretKey symmetricKey, byte[] salt, int tag, int id){
         this.name = name;
 //        this.symmetricKey = new SecretKeySpec(DatatypeConverter.parseHexBinary(symmetricKey), 0, DatatypeConverter.parseHexBinary(symmetricKey).length, "AES");
         this.symmetricKey = symmetricKey;
+        this.salt = salt;
         this.tag = tag;
-        this.idx = idx;
+        this.id = id;
     }
 
     Client(Client client) throws RemoteException {
@@ -61,9 +67,10 @@ public class Client implements ClientInt, Serializable {
         this.sendingToClients = client.getSendingToClients();
         this.listOfKeysSending = client.getListOfKeysSending();
         this.listOfTagIdSending = client.getListOfTagIdSending();
+        this.listOfSaltSending = client.getListOfSaltSending();
     }
 
-    private SecretKey createKey() throws NoSuchAlgorithmException {
+    private synchronized SecretKey createKey() throws NoSuchAlgorithmException {
         KeyGenerator keyGen = KeyGenerator.getInstance(keyAlgorithm);
         keyGen.init(keySize);// Set the key size (in bits)
 
@@ -74,37 +81,53 @@ public class Client implements ClientInt, Serializable {
         return key;
     }
 
-    private int[] firstTagId() {
+    private synchronized int[] createTagId() {
         int[] tagId = new int[2];
-        tagId[0] = random.nextInt(100);
-        tagId[1] = random.nextInt(100);
+        tagId[0] = random.nextInt(N);
+        tagId[1] = random.nextInt(N);
 
         return tagId;
     }
 
-    public void createKeyTagId(String otherClientName) throws NoSuchAlgorithmException {
+    // One time shared salt
+    public synchronized byte[] createSalt(){
+        byte[] salt = new byte[100];
+        random.nextBytes(salt);
+        return salt;
+    }
+
+    public synchronized void createKeySaltTagId(String otherClientName) throws NoSuchAlgorithmException {
         listOfKeysSending.put(otherClientName, createKey());
-        listOfTagIdSending.put(otherClientName, firstTagId());
+        listOfSaltSending.put(otherClientName, createSalt());
+        listOfTagIdSending.put(otherClientName, createTagId());
         sendingToClients.add(otherClientName);
     }
 
-    public void addReceivingFrom(String name, SecretKey key, int[] tagId){
-        Client receivingFromClient = new Client(name, key, tagId[0], tagId[1]);
+    public synchronized void addReceivingFrom(String name, SecretKey key, byte[] salt, int[] tagId){
+        Client receivingFromClient = new Client(name, key, salt, tagId[0], tagId[1]);
         receivingFromClients.add(receivingFromClient);
     }
 
-    public void sendMessage(String message) throws RemoteException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidKeySpecException {
-        int nextId = random.nextInt(100);
-        String nextTag = randomStringGenerator(20);
-        message += "||" + Integer.toString(nextId) + "||" + nextTag;
-        String encryptedMessage = encryptMessage(message);
+    public synchronized void sendMessage(String clientToSendTo, String message) throws RemoteException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidKeySpecException {
+        nextListOfTagIdSending.put(clientToSendTo, createTagId());
+        message += "||" + nextListOfTagIdSending.get(clientToSendTo)[1] + "||" + nextListOfTagIdSending.get(clientToSendTo)[0];
 
-//        server.sendMessage(encryptedMessage);
-        newSecretKey();
+        SecretKey secretKeyClientToSendTo = listOfKeysSending.get(clientToSendTo);
+        byte[] salt = listOfSaltSending.get(clientToSendTo);
+        String encryptedMessage = encryptMessage(message, secretKeyClientToSendTo);
+        System.out.println(encryptedMessage);
+
+        int tag = listOfTagIdSending.get(clientToSendTo)[0];
+        int id = listOfTagIdSending.get(clientToSendTo)[1];
+        server.sendMessage(tag, id, encryptedMessage);
+
+        nextListOfKeysSending.put(clientToSendTo, newSecretKey(secretKeyClientToSendTo, salt));
+        swapKeyTagId(clientToSendTo);
     }
 
-    public void newSecretKey() throws NoSuchAlgorithmException, InvalidKeySpecException {
-        PBEKeySpec keySpec = new PBEKeySpec(DatatypeConverter.printHexBinary(symmetricKey.getEncoded()).toCharArray(), null, iterations, keySize);
+
+    public synchronized SecretKey newSecretKey(SecretKey secretKeyClientToSendTo, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        PBEKeySpec keySpec = new PBEKeySpec(DatatypeConverter.printHexBinary(secretKeyClientToSendTo.getEncoded()).toCharArray(), salt, iterations, keySize);
 
         // Get instance of SecretKeyFactory for PBKDF2WithHmacSHA256
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
@@ -112,9 +135,17 @@ public class Client implements ClientInt, Serializable {
         // Derive the key
         byte[] newKey = keyFactory.generateSecret(keySpec).getEncoded();
         symmetricKey = new SecretKeySpec(newKey, 0, newKey.length, "AES");
+        return symmetricKey;
     }
 
-    public String randomStringGenerator(int length){
+    public synchronized void swapKeyTagId(String clientToSendTo) {
+        listOfKeysSending.put(clientToSendTo, nextListOfKeysSending.get(clientToSendTo));
+        listOfTagIdSending.put(clientToSendTo, nextListOfTagIdSending.get(clientToSendTo));
+        nextListOfKeysSending.remove(clientToSendTo);
+        nextListOfTagIdSending.remove(clientToSendTo);
+    }
+
+    public synchronized String randomStringGenerator(int length){
         String characterSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         String randomString = "";
         for(int i=0; i < length; i++ ){
@@ -124,38 +155,73 @@ public class Client implements ClientInt, Serializable {
         return randomString;
     }
 
-    public String encryptMessage(String message) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+    public synchronized String encryptMessage(String message, SecretKey secretKey) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         cipher = Cipher.getInstance(keyAlgorithm);
-        cipher.init(Cipher.ENCRYPT_MODE, symmetricKey);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
         cipher.update(message.getBytes());
         byte[] cipherText = cipher.doFinal();
-        String encryptedMessage = new String(cipherText, "UTF8");
+        String encryptedMessage = DatatypeConverter.printHexBinary(cipherText);
         return encryptedMessage;
     }
 
-    @Override
-    public void receiveMessage(String message) throws RemoteException {
-        new Thread(() -> System.out.println("Ontvangen: " + message)).start();
-//        newSecretKey();
-
-//
-//        System.out.println("Waarom doet die dit??");
-//        System.out.println(message);
+    public synchronized void receiveMessage() throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
+        for(Client client : receivingFromClients){
+            String encryptedMessage = server.receiveMessage(client.getTag(), client.getId());
+            if(encryptedMessage != null){
+                cipher = Cipher.getInstance(keyAlgorithm);
+                cipher.init(Cipher.DECRYPT_MODE, client.getSymmetricKey());
+                byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(encryptedMessage));
+                String decryptedMessage = DatatypeConverter.printHexBinary(decryptedBytes);
+                String[] decryptedMessageParts = decryptedMessage.split("||");
+                client.setTag(Integer.parseInt(decryptedMessageParts[2]));
+                client.setId(Integer.parseInt(decryptedMessageParts[1]));
+                client.setSymmetricKey(newSecretKey(client.getSymmetricKey(), client.getSalt()));
+                System.out.println(client.getName() + ": " + decryptedMessageParts[0]);
+            }
+        }
     }
 
-    public String getHash(){
-        return null;
+    public synchronized void updateReceivingFrom() {
+        // TODO ~ loopt in thread, mogelijkse fix van lijst update voor messages
+    }
+
+    public void run() {
+        // code in the other thread, can reference "var" variable
+        while(true){
+            try {
+                updateReceivingFrom();
+                receiveMessage();
+            } catch (RemoteException e) {
+                throw new RuntimeException(e);
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            } catch (NoSuchPaddingException e) {
+                throw new RuntimeException(e);
+            } catch (InvalidKeyException e) {
+                throw new RuntimeException(e);
+            } catch (IllegalBlockSizeException e) {
+                throw new RuntimeException(e);
+            } catch (BadPaddingException e) {
+                throw new RuntimeException(e);
+            } catch (InvalidKeySpecException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public String getName(){
         return name;
     }
 
-    public SecretKey getKey(String name){
+    public SecretKey getListOfKeysSending(String name){
         return listOfKeysSending.get(name);
     }
 
-    public int[] getTagId(String name){
+    public byte[] getListOfSaltSending(String name){
+        return listOfSaltSending.get(name);
+    }
+
+    public int[] getListOfTagIdSending(String name){
         return listOfTagIdSending.get(name);
     }
 
@@ -165,6 +231,10 @@ public class Client implements ClientInt, Serializable {
 
     public HashMap<String, SecretKey> getListOfKeysSending() {
         return listOfKeysSending;
+    }
+
+    public HashMap<String, byte[]>getListOfSaltSending(){
+        return listOfSaltSending;
     }
 
     public HashMap<String, int[]> getListOfTagIdSending() {
@@ -181,5 +251,37 @@ public class Client implements ClientInt, Serializable {
 
     public ServerInt getServer() {
         return server;
+    }
+
+    public SecretKey getSymmetricKey(){
+        return symmetricKey;
+    }
+
+    public void setSymmetricKey(SecretKey symmetricKey){
+        this.symmetricKey = symmetricKey;
+    }
+
+    public byte[] getSalt(){
+        return salt;
+    }
+
+    public void setSalt(byte[] salt){
+        this.salt = salt;
+    }
+
+    public int getTag(){
+        return tag;
+    }
+
+    public void setTag(int tag){
+        this.tag = tag;
+    }
+
+    public int getId(){
+        return id;
+    }
+
+    public void setId(int id){
+        this.id = id;
     }
 }
