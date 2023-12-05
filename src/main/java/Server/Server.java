@@ -1,11 +1,11 @@
 package Server;
 
+import Client.Client;
 import Client.ClientInt;
 
 import javax.crypto.SecretKey;
 import javax.xml.bind.DatatypeConverter;
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
@@ -19,7 +19,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
 
     private int N = 9999;
     private HashMap<String, String>[] bulletinBoard;
-    private ArrayList<ClientInt> clients;
+    private List<ClientInt> clients;
 
     Server() throws RemoteException {
         super();
@@ -41,12 +41,11 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         return true;
     }
 
-    public synchronized ClientInt addConnection(ClientInt client, String nameOfOtherClient) throws RemoteException, NoSuchAlgorithmException {
-        // TODO ~ Probleem dat otherClient niet mee update met effectieve object. Moet gefixt worden
+    public synchronized Boolean addConnection(ClientInt client, String nameOfOtherClient) throws RemoteException, NoSuchAlgorithmException {
         ClientInt otherClient = null;
 
         if(client.getSendingClients().contains(nameOfOtherClient)){
-            return null;
+            return false;
         }
         for(ClientInt cl : clients){
             if(cl.getName().equals(nameOfOtherClient)){
@@ -54,14 +53,14 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
             }
         }
         if(otherClient == null){
-            return null;
+            return false;
         } else {
             client.createKeySaltTagId(otherClient.getName());
             SecretKey key = client.getListOfKeysSending(otherClient.getName());
             byte[] salt = client.getListOfSaltSending(otherClient.getName());
             int[] tagId = client.getListOfTagIdSending(otherClient.getName());
             otherClient.addReceivingFrom(client.getName(), key, salt, tagId);
-            return client;
+            return true;
         }
     }
 
@@ -76,20 +75,18 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
     }
 
     public synchronized void sendMessage(int _tag, int _id, String encryptedMessage) throws RemoteException, NoSuchAlgorithmException {
-        // TODO EncryptedMessage opslaan in Bulletin board ~ testen
         String tag = Integer.toString(_tag);
         int id = _id;
         byte[] hashBytes = hashFunction(tag);
         String hash = DatatypeConverter.printHexBinary(hashBytes);
-        System.out.println("Hash send: " + hash);
+        System.out.println("Send encryptedMessage: " + encryptedMessage);
         bulletinBoard[id].put(hash, encryptedMessage);
     }
 
     public synchronized String receiveMessage(int tag, int id) throws RemoteException, NoSuchAlgorithmException {
-        // TODO EncryptedMessage opslaan in Bulletin board
         byte[] hashBytes = hashFunction(Integer.toString(tag));
         String hash = DatatypeConverter.printHexBinary(hashBytes);
-        System.out.println("Hash send: " + hash);
-        return bulletinBoard[id].get(hash);
+        String encryptedMessage = bulletinBoard[id].get(hash);
+        return encryptedMessage;
     }
 }

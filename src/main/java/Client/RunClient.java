@@ -20,8 +20,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 public class RunClient {
-
-    // TODO ~ Thread waar er continue wordt gekeken of er nieuwe berichten zijn toegekomen
     public static void main(String[] args) throws IOException, NotBoundException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
         new RunClient();
 
@@ -50,11 +48,9 @@ public class RunClient {
         // Client toevoegen
         System.out.print("Naam andere client: ");
         String nameOtherClient = scanner.nextLine();
-        Client clientBackup = new Client(client);
-        client = (Client) server.addConnection(client, nameOtherClient);
-        if(client == null){
+        Boolean succeeded = server.addConnection(client, nameOtherClient);
+        if(!succeeded){
             System.out.println("Connectie opzetten met gebruiker is mislukt");
-            client = new Client(clientBackup);
         } else {
             System.out.println("Succesvol verbonden met gebruiker " + nameOtherClient);
         }
@@ -76,11 +72,9 @@ public class RunClient {
                         thread.stop();
                         System.out.print("Naam andere client: ");
                         nameOtherClient = scanner.nextLine();
-                        clientBackup = new Client(client);
-                        client = (Client) server.addConnection(client, nameOtherClient);
-                        if(client == null){
+                        succeeded = server.addConnection(client, nameOtherClient);
+                        if(!succeeded){
                             System.out.println("Connectie opzetten met gebruiker is mislukt");
-                            client = new Client(clientBackup);
                         } else {
                             System.out.println("Succesvol verbonden met gebruiker " + nameOtherClient);
                         }

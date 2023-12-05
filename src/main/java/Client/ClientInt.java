@@ -12,7 +12,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.List;
 
 public interface ClientInt extends Remote {
-//    String send() throws RemoteException;
     void createKeySaltTagId(String otherClientName) throws RemoteException, NoSuchAlgorithmException;
     void addReceivingFrom(String name, SecretKey key, byte[] salt, int[] tagId) throws RemoteException;
     String getName() throws RemoteException;

@@ -6,6 +6,7 @@ import javax.crypto.*;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -14,11 +15,9 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
-public class Client implements ClientInt, Serializable, Runnable {
+public class Client extends UnicastRemoteObject implements ClientInt, Serializable, Runnable {
     private static final long serialVersionUID = -4257989786795911819L;
     private final int N = 9999;
-
-//    private final ServerInt server;
     private HashMap<String, SecretKey> listOfKeysSending;
     private HashMap<String, int[]> listOfTagIdSending;
     private HashMap<String, byte[]> listOfSaltSending;
@@ -51,9 +50,8 @@ public class Client implements ClientInt, Serializable, Runnable {
         this.nextListOfTagIdSending = new HashMap<>();
     }
 
-    Client(String name, SecretKey symmetricKey, byte[] salt, int tag, int id){
+    Client(String name, SecretKey symmetricKey, byte[] salt, int tag, int id) throws RemoteException{
         this.name = name;
-//        this.symmetricKey = new SecretKeySpec(DatatypeConverter.parseHexBinary(symmetricKey), 0, DatatypeConverter.parseHexBinary(symmetricKey).length, "AES");
         this.symmetricKey = symmetricKey;
         this.salt = salt;
         this.tag = tag;
@@ -103,7 +101,7 @@ public class Client implements ClientInt, Serializable, Runnable {
         sendingToClients.add(otherClientName);
     }
 
-    public synchronized void addReceivingFrom(String name, SecretKey key, byte[] salt, int[] tagId){
+    public synchronized void addReceivingFrom(String name, SecretKey key, byte[] salt, int[] tagId) throws RemoteException {
         Client receivingFromClient = new Client(name, key, salt, tagId[0], tagId[1]);
         receivingFromClients.add(receivingFromClient);
     }
@@ -112,10 +110,11 @@ public class Client implements ClientInt, Serializable, Runnable {
         nextListOfTagIdSending.put(clientToSendTo, createTagId());
         message += "||" + nextListOfTagIdSending.get(clientToSendTo)[1] + "||" + nextListOfTagIdSending.get(clientToSendTo)[0];
 
+        System.out.println("Msg: " + message);
         SecretKey secretKeyClientToSendTo = listOfKeysSending.get(clientToSendTo);
         byte[] salt = listOfSaltSending.get(clientToSendTo);
         String encryptedMessage = encryptMessage(message, secretKeyClientToSendTo);
-        System.out.println(encryptedMessage);
+        System.out.println("Encrypted Msg: " + encryptedMessage);
 
         int tag = listOfTagIdSending.get(clientToSendTo)[0];
         int id = listOfTagIdSending.get(clientToSendTo)[1];
@@ -157,11 +156,11 @@ public class Client implements ClientInt, Serializable, Runnable {
 
     public synchronized String encryptMessage(String message, SecretKey secretKey) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         cipher = Cipher.getInstance(keyAlgorithm);
+        System.out.println("Send key: " + DatatypeConverter.printHexBinary(secretKey.getEncoded()));
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-        cipher.update(message.getBytes());
+        cipher.update(message.getBytes("UTF-8"));
         byte[] cipherText = cipher.doFinal();
-        String encryptedMessage = DatatypeConverter.printHexBinary(cipherText);
-        return encryptedMessage;
+        return Base64.getEncoder().encodeToString(cipherText);
     }
 
     public synchronized void receiveMessage() throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
@@ -169,10 +168,12 @@ public class Client implements ClientInt, Serializable, Runnable {
             String encryptedMessage = server.receiveMessage(client.getTag(), client.getId());
             if(encryptedMessage != null){
                 cipher = Cipher.getInstance(keyAlgorithm);
+                System.out.println("Key receive: " + DatatypeConverter.printHexBinary(client.getSymmetricKey().getEncoded()));
                 cipher.init(Cipher.DECRYPT_MODE, client.getSymmetricKey());
                 byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(encryptedMessage));
-                String decryptedMessage = DatatypeConverter.printHexBinary(decryptedBytes);
-                String[] decryptedMessageParts = decryptedMessage.split("||");
+                String decryptedMessage = new String(decryptedBytes);
+                System.out.println("DecryptedMsg Receive: " + decryptedMessage);
+                String[] decryptedMessageParts = decryptedMessage.split("\\|\\|");
                 client.setTag(Integer.parseInt(decryptedMessageParts[2]));
                 client.setId(Integer.parseInt(decryptedMessageParts[1]));
                 client.setSymmetricKey(newSecretKey(client.getSymmetricKey(), client.getSalt()));
@@ -181,15 +182,10 @@ public class Client implements ClientInt, Serializable, Runnable {
         }
     }
 
-    public synchronized void updateReceivingFrom() {
-        // TODO ~ loopt in thread, mogelijkse fix van lijst update voor messages
-    }
-
     public void run() {
         // code in the other thread, can reference "var" variable
         while(true){
             try {
-                updateReceivingFrom();
                 receiveMessage();
             } catch (RemoteException e) {
                 throw new RuntimeException(e);
