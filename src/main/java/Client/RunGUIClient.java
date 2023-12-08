@@ -55,7 +55,6 @@ public class RunGUIClient extends Application {
             client = new Client(nameTextField.getText(), messagesTextArea, otherClients);
             if(!client.registerClient()){
                 failedToRegister.setText("Failed to register");
-                System.out.println("Er bestaat reeds een gebruiker met deze naam. Gebruik een unieke naam");
             } else {
                 failedToRegister.setFill(Color.GREEN);
                 failedToRegister.setText("Successful");
@@ -65,6 +64,11 @@ public class RunGUIClient extends Application {
                 // Start thread that receives messages
                 thread = new Thread(client);
                 thread.start();
+
+                messagesTextArea.setStyle("-fx-text-fill: black;") ;
+
+                otherClients.getItems().add("*Everybody*");
+                otherClients.getSelectionModel().select("*Everybody*");
             }
         } else {
             failedToRegister.setText("Fill in a name");
@@ -73,9 +77,9 @@ public class RunGUIClient extends Application {
     }
 
     public void addClient(ActionEvent event) throws NoSuchAlgorithmException, RemoteException {
-        if (otherClientTextField.getText().isEmpty()){
+        if (otherClientTextField.getText().isEmpty()) {
             failedToAdd.setText("Fill in a name");
-        } else if(otherClientTextField.getText().equals(nameTextField.getText())){
+        } else if(otherClientTextField.getText().equals(nameTextField.getText())) {
             failedToAdd.setText("Can't connect with yourself");
         } else {
             Boolean succeeded = client.addConnection(otherClientTextField.getText());
@@ -96,7 +100,9 @@ public class RunGUIClient extends Application {
             noClientSelected.setText("Select a client");
         } else if(messageTextField.getText().isEmpty()) {
             noClientSelected.setText("Write a message");
-        }else{
+        } else if(otherClients.getValue().equals("*Everybody*")) {
+            noClientSelected.setText("Can't send to *everybody*");
+        } else {
             client.sendMessage((String) otherClients.getValue(), messageTextField.getText());
             messageTextField.setText("");
             noClientSelected.setText("");

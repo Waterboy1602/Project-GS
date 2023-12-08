@@ -5,6 +5,7 @@ module Client {
     requires org.controlsfx.controls;
     requires java.rmi;
     requires java.xml.bind;
+    requires java.sql;
 
     opens Client to javafx.fxml;
     exports Client;

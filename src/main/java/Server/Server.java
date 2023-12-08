@@ -37,7 +37,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
             }
         }
         this.clients.add(client);
-        System.out.println("Added client");
+        System.out.println("Added client: " + client.getName());
         return true;
     }
 
@@ -79,7 +79,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         int id = _id;
         byte[] hashBytes = hashFunction(tag);
         String hash = DatatypeConverter.printHexBinary(hashBytes);
-        System.out.println("Send encryptedMessage: " + encryptedMessage);
+//        System.out.println("Send encryptedMessage: " + encryptedMessage);
         bulletinBoard[id].put(hash, encryptedMessage);
     }
 
@@ -87,6 +87,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         byte[] hashBytes = hashFunction(Integer.toString(tag));
         String hash = DatatypeConverter.printHexBinary(hashBytes);
         String encryptedMessage = bulletinBoard[id].get(hash);
+        bulletinBoard[id].remove(hash);
         return encryptedMessage;
     }
 }

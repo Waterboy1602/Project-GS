@@ -15,7 +15,9 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
 import java.security.spec.InvalidKeySpecException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -46,15 +48,13 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
     private byte[] salt;
     private int id;
     private int tag;
-    private Random random = new Random(9);
+    private Random random = new Random();
 
     private TextArea messagesTextArea;
     private ChoiceBox otherClients;
 
     private Registry registry;
-
-
-
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
 
     Client(String name, ServerInt server) throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
         this.name = name;
@@ -91,16 +91,16 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         this.id = id;
     }
 
-    Client(Client client) throws RemoteException {
-        this.name = client.getName();
-        this.server = client.getServer();
-        this.receivingFromClients = client.getReceivingFromClients();
-        this.sendingToClients = client.getSendingToClients();
-        this.listOfKeysSending = client.getListOfKeysSending();
-        this.listOfTagIdSending = client.getListOfTagIdSending();
-        this.listOfSaltSending = client.getListOfSaltSending();
-        this.receivedMessages = client.getReceivedMessages();
-    }
+//    Client(Client client) throws RemoteException {
+//        this.name = client.getName();
+//        this.server = client.getServer();
+//        this.receivingFromClients = client.getReceivingFromClients();
+//        this.sendingToClients = client.getSendingToClients();
+//        this.listOfKeysSending = client.getListOfKeysSending();
+//        this.listOfTagIdSending = client.getListOfTagIdSending();
+//        this.listOfSaltSending = client.getListOfSaltSending();
+//        this.receivedMessages = client.getReceivedMessages();
+//    }
 
     public boolean registerClient() throws RemoteException, NotBoundException {
         this.registry = LocateRegistry.getRegistry("localhost", 1099);
@@ -127,7 +127,7 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
 
         SecretKey key = keyGen.generateKey();
         // Print the generated key
-        System.out.println("Generated Symmetric Key: " + DatatypeConverter.printHexBinary(key.getEncoded()));
+//        System.out.println("Generated Symmetric Key: " + DatatypeConverter.printHexBinary(key.getEncoded()));
         // Generate a symmetric key
         return key;
     }
@@ -160,16 +160,17 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
     }
 
     public void sendMessage(String clientToSendTo, String message) throws RemoteException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidKeySpecException {
-//        receivedMessages.get(clientToSendTo).add(name + ": " + message);
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        receivedMessages.add("*YOU*||" + clientToSendTo + "||(" + dateFormat.format(timestamp) + "): " + message);
 
         nextListOfTagIdSending.put(clientToSendTo, createTagId());
         message += "||" + nextListOfTagIdSending.get(clientToSendTo)[1] + "||" + nextListOfTagIdSending.get(clientToSendTo)[0];
 
-        System.out.println("Msg: " + message);
+//        System.out.println("Msg: " + message);
         SecretKey secretKeyClientToSendTo = listOfKeysSending.get(clientToSendTo);
         byte[] salt = listOfSaltSending.get(clientToSendTo);
         String encryptedMessage = encryptMessage(message, secretKeyClientToSendTo);
-        System.out.println("Encrypted Msg: " + encryptedMessage);
+//        System.out.println("Encrypted Msg: " + encryptedMessage);
 
         int tag = listOfTagIdSending.get(clientToSendTo)[0];
         int id = listOfTagIdSending.get(clientToSendTo)[1];
@@ -211,43 +212,64 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
 
     public String encryptMessage(String message, SecretKey secretKey) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         cipher = Cipher.getInstance(keyAlgorithm);
-        System.out.println("Send key: " + DatatypeConverter.printHexBinary(secretKey.getEncoded()));
+//        System.out.println("Send key: " + DatatypeConverter.printHexBinary(secretKey.getEncoded()));
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
         byte[] cipherText = cipher.doFinal(message.getBytes("UTF-8"));
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
     public void receiveMessage() throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
-        for(Client client : receivingFromClients){
+        List<Client> receivingFromClientsCopy = new ArrayList<>(receivingFromClients);
+        for(Client client : receivingFromClientsCopy){
             String encryptedMessage = server.receiveMessage(client.getTag(), client.getId());
             if(encryptedMessage != null){
-                System.out.println("EncryptedMsg Receive: " + encryptedMessage);
+//                System.out.println("EncryptedMsg Receive: " + encryptedMessage);
                 cipher = Cipher.getInstance(keyAlgorithm);
-                System.out.println("Key receive: " + DatatypeConverter.printHexBinary(client.getSymmetricKey().getEncoded()));
+//                System.out.println("Key receive: " + DatatypeConverter.printHexBinary(client.getSymmetricKey().getEncoded()));
                 cipher.init(Cipher.DECRYPT_MODE, client.getSymmetricKey());
                 byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(encryptedMessage));
                 String decryptedMessage = new String(decryptedBytes, UTF_8);
-                System.out.println("DecryptedMsg Receive: " + decryptedMessage);
+//                System.out.println("DecryptedMsg Receive: " + decryptedMessage);
                 String[] decryptedMessageParts = decryptedMessage.split("\\|\\|");
                 client.setTag(Integer.parseInt(decryptedMessageParts[2]));
                 client.setId(Integer.parseInt(decryptedMessageParts[1]));
                 client.setSymmetricKey(newSecretKey(client.getSymmetricKey(), client.getSalt()));
-                System.out.println(client.getName() + ": " + decryptedMessageParts[0]);
-                receivedMessages.add(client.getName() + ": " + decryptedMessageParts[0]);
+//                System.out.println(client.getName() + ": " + decryptedMessageParts[0]);
+
+                Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+                receivedMessages.add(client.getName() + " (" + dateFormat.format(timestamp) + "): " + decryptedMessageParts[0]);
             }
         }
     }
 
     public void updateMessagesGUI(){
         String messagesOutput = "";
-        for(String msg : receivedMessages){
-            messagesOutput += msg + "\n";
+        if(otherClients.getValue() != null){
+            if(otherClients.getValue().equals("*Everybody*")){
+                for(String msg : receivedMessages){
+                    String[] msgSplit = msg.split(" ");
+                    if(msg.split(" ")[0].split("\\|\\|")[0].equals("*YOU*")){
+                        messagesOutput += name + " " + msg.split("\\|\\|")[2] + "\n";
+                    } else{
+                        messagesOutput += msg + "\n";
+                    }
+                }
+            } else {
+                String selectedClient = (String) otherClients.getValue();
+                for(String msg : receivedMessages){
+                    if(msg.split(" ")[0].split("\\|\\|")[0].equals("*YOU*") && msg.split(" ")[0].split("\\|\\|")[1].equals(selectedClient)){
+                        messagesOutput += name + " " + msg.split("\\|\\|")[2] + "\n";
+                    }
+                    if(msg.split(" ")[0].equals(selectedClient)){
+                        messagesOutput += msg + "\n";
+                    }
+                }
+            }
+            messagesTextArea.setText(messagesOutput);
         }
-        messagesTextArea.setText(messagesOutput);
     }
 
     public void run() {
-        // code in the other thread, can reference "var" variable
         while(true){
             try {
                 receiveMessage();
