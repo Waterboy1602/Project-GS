@@ -14,3 +14,7 @@ Naar "everybody" kunnen er geen berichten gestuurd worden.
 
 ## Screenshot
 ![Client GUI](./img/client.png)
+
+## Opstarten
+1. De _server_ moet eerst en apart opgestart worden
+2. Vervolgens kan de _client_ opgestart worden. Hiervan kunnen er meerdere services simultaan draaien.
