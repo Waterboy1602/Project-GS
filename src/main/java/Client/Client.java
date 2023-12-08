@@ -3,7 +3,6 @@ package Client;
 import Server.ServerInt;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.TextArea;
-import org.w3c.dom.Text;
 
 import javax.crypto.*;
 import java.io.Serializable;
@@ -91,17 +90,6 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         this.id = id;
     }
 
-//    Client(Client client) throws RemoteException {
-//        this.name = client.getName();
-//        this.server = client.getServer();
-//        this.receivingFromClients = client.getReceivingFromClients();
-//        this.sendingToClients = client.getSendingToClients();
-//        this.listOfKeysSending = client.getListOfKeysSending();
-//        this.listOfTagIdSending = client.getListOfTagIdSending();
-//        this.listOfSaltSending = client.getListOfSaltSending();
-//        this.receivedMessages = client.getReceivedMessages();
-//    }
-
     public boolean registerClient() throws RemoteException, NotBoundException {
         this.registry = LocateRegistry.getRegistry("localhost", 1099);
         this.server = (ServerInt) registry.lookup("server");
@@ -123,12 +111,10 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
 
     public SecretKey createKey() throws NoSuchAlgorithmException {
         KeyGenerator keyGen = KeyGenerator.getInstance(keyAlgorithm);
-        keyGen.init(keySize);// Set the key size (in bits)
+        keyGen.init(keySize);
 
         SecretKey key = keyGen.generateKey();
-        // Print the generated key
 //        System.out.println("Generated Symmetric Key: " + DatatypeConverter.printHexBinary(key.getEncoded()));
-        // Generate a symmetric key
         return key;
     }
 
@@ -198,16 +184,6 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         listOfTagIdSending.put(clientToSendTo, nextListOfTagIdSending.get(clientToSendTo));
         nextListOfKeysSending.remove(clientToSendTo);
         nextListOfTagIdSending.remove(clientToSendTo);
-    }
-
-    public String randomStringGenerator(int length){
-        String characterSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        String randomString = "";
-        for(int i=0; i < length; i++ ){
-            int randomIndex = random.nextInt(characterSet.length());
-            randomString += characterSet.charAt(randomIndex);
-        }
-        return randomString;
     }
 
     public String encryptMessage(String message, SecretKey secretKey) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {

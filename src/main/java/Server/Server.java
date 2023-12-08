@@ -1,6 +1,5 @@
 package Server;
 
-import Client.Client;
 import Client.ClientInt;
 
 import javax.crypto.SecretKey;
@@ -66,7 +65,6 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
 
     private byte[] hashFunction(String tag) throws NoSuchAlgorithmException {
         MessageDigest md = MessageDigest.getInstance("SHA3-256");
-
         return md.digest(tag.getBytes());
     }
 
