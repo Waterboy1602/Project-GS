@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.ScrollBar?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.text.Font?>
+<?import javafx.scene.text.Text?>
+
+<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Client.RunGUIClient">
+   <children>
+      <SplitPane dividerPositions="0.2608695652173913" layoutY="7.0" prefHeight="400.0" prefWidth="600.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+        <items>
+          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+               <children>
+                  <Button layoutX="9.0" layoutY="330.0" mnemonicParsing="false" onAction="#addClient" prefHeight="25.0" prefWidth="132.0" text="Add client" />
+                  <ChoiceBox fx:id="otherClients" layoutX="9.0" layoutY="159.0" prefHeight="25.0" prefWidth="132.0" />
+                  <Text layoutX="9.0" layoutY="156.0" strokeType="OUTSIDE" strokeWidth="0.0" text="Select client to chat with:" />
+                  <TextField fx:id="nameTextField" layoutX="9.0" layoutY="38.0" prefHeight="25.0" prefWidth="132.0" promptText="Name" />
+                  <Button fx:id="confirmButton" layoutX="9.0" layoutY="68.0" mnemonicParsing="false" onAction="#pushRegisterButton" prefHeight="25.0" prefWidth="132.0" text="Confirm" />
+                  <Text fx:id="failedToRegister" fill="RED" layoutX="9.0" layoutY="106.0" strokeType="OUTSIDE" strokeWidth="0.0" wrappingWidth="110.0">
+                     <font>
+                        <Font name="System Bold" size="12.0" />
+                     </font>
+                  </Text>
+                  <TextField fx:id="otherClientTextField" layoutX="9.0" layoutY="300.0" prefHeight="25.0" prefWidth="132.0" promptText="Name to connect" />
+                  <Text layoutX="9.0" layoutY="289.0" strokeType="OUTSIDE" strokeWidth="0.0" text="ADD" textAlignment="CENTER" wrappingWidth="131.71875">
+                     <font>
+                        <Font name="System Bold" size="18.0" />
+                     </font>
+                  </Text>
+                  <Text layoutX="11.0" layoutY="32.0" strokeType="OUTSIDE" strokeWidth="0.0" text="REGISTER" textAlignment="CENTER" wrappingWidth="132.0">
+                     <font>
+                        <Font name="System Bold" size="18.0" />
+                     </font>
+                  </Text>
+                  <Text fx:id="failedToAdd" fill="RED" layoutX="9.0" layoutY="376.0" strokeType="OUTSIDE" strokeWidth="0.0" wrappingWidth="132.0">
+                     <font>
+                        <Font name="System Bold" size="12.0" />
+                     </font>
+                  </Text>
+                  <Text fx:id="noClientSelected" fill="RED" layoutX="11.0" layoutY="203.0" strokeType="OUTSIDE" strokeWidth="0.0" wrappingWidth="132.0">
+                     <font>
+                        <Font name="System Bold" size="12.0" />
+                     </font>
+                  </Text>
+               </children>
+            </AnchorPane>
+          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+               <children>
+                  <TextArea fx:id="messagesTextArea" disable="true" prefHeight="350.0" prefWidth="464.0" AnchorPane.bottomAnchor="48.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                  <ScrollBar layoutX="443.0" layoutY="8.0" orientation="VERTICAL" prefHeight="333.0" prefWidth="14.0" />
+                  <Button fx:id="sendButton" defaultButton="true" layoutX="379.0" layoutY="341.0" mnemonicParsing="false" onAction="#sendMessage" prefHeight="51.0" prefWidth="62.0" text="Send" />
+                  <TextField fx:id="messageTextField" layoutY="341.0" prefHeight="51.0" prefWidth="379.0" promptText="Message to send" />
+               </children>
+            </AnchorPane>
+        </items>
+      </SplitPane>
+   </children>
+</AnchorPane>

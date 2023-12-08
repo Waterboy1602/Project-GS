@@ -10,7 +10,7 @@ public class RunServer {
             Registry registry= LocateRegistry.createRegistry(1099);
 
             // create a new service named CounterService
-            registry.rebind("Server", new Server());
+            registry.rebind("server", new Server());
         } catch(Exception e) {
             e.printStackTrace();
         }

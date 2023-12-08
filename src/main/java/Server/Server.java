@@ -30,7 +30,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         clients = new ArrayList<>();
     }
 
-    public synchronized boolean registerClient(ClientInt client) throws RemoteException {
+    public boolean registerClient(ClientInt client) throws RemoteException {
         for(ClientInt cl : clients){
             if(cl.getName().equals(client.getName())){
                 return false;
@@ -41,7 +41,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         return true;
     }
 
-    public synchronized Boolean addConnection(ClientInt client, String nameOfOtherClient) throws RemoteException, NoSuchAlgorithmException {
+    public Boolean addConnection(ClientInt client, String nameOfOtherClient) throws RemoteException, NoSuchAlgorithmException {
         ClientInt otherClient = null;
 
         if(client.getSendingClients().contains(nameOfOtherClient)){
@@ -70,11 +70,11 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         return md.digest(tag.getBytes());
     }
 
-    public synchronized List<String> getSendingClients(ClientInt client) throws RemoteException {
+    public List<String> getSendingClients(ClientInt client) throws RemoteException {
         return client.getSendingClients();
     }
 
-    public synchronized void sendMessage(int _tag, int _id, String encryptedMessage) throws RemoteException, NoSuchAlgorithmException {
+    public void sendMessage(int _tag, int _id, String encryptedMessage) throws RemoteException, NoSuchAlgorithmException {
         String tag = Integer.toString(_tag);
         int id = _id;
         byte[] hashBytes = hashFunction(tag);
@@ -83,7 +83,7 @@ public class Server extends UnicastRemoteObject implements ServerInt, Serializab
         bulletinBoard[id].put(hash, encryptedMessage);
     }
 
-    public synchronized String receiveMessage(int tag, int id) throws RemoteException, NoSuchAlgorithmException {
+    public String receiveMessage(int tag, int id) throws RemoteException, NoSuchAlgorithmException {
         byte[] hashBytes = hashFunction(Integer.toString(tag));
         String hash = DatatypeConverter.printHexBinary(hashBytes);
         String encryptedMessage = bulletinBoard[id].get(hash);

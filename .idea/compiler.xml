@@ -9,5 +9,8 @@
         <module name="GUI-Project-GS" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="Project-GS" target="17" />
+    </bytecodeTargetLevel>
   </component>
 </project>

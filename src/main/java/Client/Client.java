@@ -1,11 +1,17 @@
 package Client;
 
 import Server.ServerInt;
+import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.TextArea;
+import org.w3c.dom.Text;
 
 import javax.crypto.*;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -14,6 +20,8 @@ import java.util.*;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Client extends UnicastRemoteObject implements ClientInt, Serializable, Runnable {
     private static final long serialVersionUID = -4257989786795911819L;
@@ -26,6 +34,8 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
 
     private List<Client> receivingFromClients;
     private List<String> sendingToClients;
+
+    private List<String> receivedMessages;
     private String name;
     private ServerInt server;
     private Cipher cipher;
@@ -38,6 +48,14 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
     private int tag;
     private Random random = new Random(9);
 
+    private TextArea messagesTextArea;
+    private ChoiceBox otherClients;
+
+    private Registry registry;
+
+
+
+
     Client(String name, ServerInt server) throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
         this.name = name;
         this.server = server;
@@ -48,6 +66,21 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         this.listOfTagIdSending = new HashMap<>();
         this.nextListOfKeysSending = new HashMap<>();
         this.nextListOfTagIdSending = new HashMap<>();
+        this.receivedMessages = new ArrayList<>();
+    }
+
+    Client(String name, TextArea messagesTextArea, ChoiceBox otherClients) throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+        this.name = name;
+        this.receivingFromClients = new ArrayList<>();
+        this.sendingToClients =  new ArrayList<>();
+        this.listOfKeysSending = new HashMap<>();
+        this.listOfSaltSending = new HashMap<>();
+        this.listOfTagIdSending = new HashMap<>();
+        this.nextListOfKeysSending = new HashMap<>();
+        this.nextListOfTagIdSending = new HashMap<>();
+        this.receivedMessages = new ArrayList<>();
+        this.messagesTextArea = messagesTextArea;
+        this.otherClients = otherClients;
     }
 
     Client(String name, SecretKey symmetricKey, byte[] salt, int tag, int id) throws RemoteException{
@@ -66,9 +99,29 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         this.listOfKeysSending = client.getListOfKeysSending();
         this.listOfTagIdSending = client.getListOfTagIdSending();
         this.listOfSaltSending = client.getListOfSaltSending();
+        this.receivedMessages = client.getReceivedMessages();
     }
 
-    private synchronized SecretKey createKey() throws NoSuchAlgorithmException {
+    public boolean registerClient() throws RemoteException, NotBoundException {
+        this.registry = LocateRegistry.getRegistry("localhost", 1099);
+        this.server = (ServerInt) registry.lookup("server");
+        if(server.registerClient(this)){
+            return true;
+        } else {
+            return false;
+        }
+
+    }
+
+    public boolean addConnection(String name) throws NoSuchAlgorithmException, RemoteException {
+        if(server.addConnection(this, name)){
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public SecretKey createKey() throws NoSuchAlgorithmException {
         KeyGenerator keyGen = KeyGenerator.getInstance(keyAlgorithm);
         keyGen.init(keySize);// Set the key size (in bits)
 
@@ -79,7 +132,7 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         return key;
     }
 
-    private synchronized int[] createTagId() {
+    public int[] createTagId() {
         int[] tagId = new int[2];
         tagId[0] = random.nextInt(N);
         tagId[1] = random.nextInt(N);
@@ -88,25 +141,27 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
     }
 
     // One time shared salt
-    public synchronized byte[] createSalt(){
+    public byte[] createSalt(){
         byte[] salt = new byte[100];
         random.nextBytes(salt);
         return salt;
     }
 
-    public synchronized void createKeySaltTagId(String otherClientName) throws NoSuchAlgorithmException {
+    public void createKeySaltTagId(String otherClientName) throws NoSuchAlgorithmException {
         listOfKeysSending.put(otherClientName, createKey());
         listOfSaltSending.put(otherClientName, createSalt());
         listOfTagIdSending.put(otherClientName, createTagId());
         sendingToClients.add(otherClientName);
     }
 
-    public synchronized void addReceivingFrom(String name, SecretKey key, byte[] salt, int[] tagId) throws RemoteException {
+    public void addReceivingFrom(String name, SecretKey key, byte[] salt, int[] tagId) throws RemoteException {
         Client receivingFromClient = new Client(name, key, salt, tagId[0], tagId[1]);
         receivingFromClients.add(receivingFromClient);
     }
 
-    public synchronized void sendMessage(String clientToSendTo, String message) throws RemoteException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidKeySpecException {
+    public void sendMessage(String clientToSendTo, String message) throws RemoteException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidKeySpecException {
+//        receivedMessages.get(clientToSendTo).add(name + ": " + message);
+
         nextListOfTagIdSending.put(clientToSendTo, createTagId());
         message += "||" + nextListOfTagIdSending.get(clientToSendTo)[1] + "||" + nextListOfTagIdSending.get(clientToSendTo)[0];
 
@@ -125,7 +180,7 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
     }
 
 
-    public synchronized SecretKey newSecretKey(SecretKey secretKeyClientToSendTo, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public SecretKey newSecretKey(SecretKey secretKeyClientToSendTo, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
         PBEKeySpec keySpec = new PBEKeySpec(DatatypeConverter.printHexBinary(secretKeyClientToSendTo.getEncoded()).toCharArray(), salt, iterations, keySize);
 
         // Get instance of SecretKeyFactory for PBKDF2WithHmacSHA256
@@ -137,14 +192,14 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         return symmetricKey;
     }
 
-    public synchronized void swapKeyTagId(String clientToSendTo) {
+    public void swapKeyTagId(String clientToSendTo) {
         listOfKeysSending.put(clientToSendTo, nextListOfKeysSending.get(clientToSendTo));
         listOfTagIdSending.put(clientToSendTo, nextListOfTagIdSending.get(clientToSendTo));
         nextListOfKeysSending.remove(clientToSendTo);
         nextListOfTagIdSending.remove(clientToSendTo);
     }
 
-    public synchronized String randomStringGenerator(int length){
+    public String randomStringGenerator(int length){
         String characterSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         String randomString = "";
         for(int i=0; i < length; i++ ){
@@ -154,32 +209,41 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         return randomString;
     }
 
-    public synchronized String encryptMessage(String message, SecretKey secretKey) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+    public String encryptMessage(String message, SecretKey secretKey) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         cipher = Cipher.getInstance(keyAlgorithm);
         System.out.println("Send key: " + DatatypeConverter.printHexBinary(secretKey.getEncoded()));
         cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-        cipher.update(message.getBytes("UTF-8"));
-        byte[] cipherText = cipher.doFinal();
+        byte[] cipherText = cipher.doFinal(message.getBytes("UTF-8"));
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
-    public synchronized void receiveMessage() throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
+    public void receiveMessage() throws RemoteException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException {
         for(Client client : receivingFromClients){
             String encryptedMessage = server.receiveMessage(client.getTag(), client.getId());
             if(encryptedMessage != null){
+                System.out.println("EncryptedMsg Receive: " + encryptedMessage);
                 cipher = Cipher.getInstance(keyAlgorithm);
                 System.out.println("Key receive: " + DatatypeConverter.printHexBinary(client.getSymmetricKey().getEncoded()));
                 cipher.init(Cipher.DECRYPT_MODE, client.getSymmetricKey());
                 byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(encryptedMessage));
-                String decryptedMessage = new String(decryptedBytes);
+                String decryptedMessage = new String(decryptedBytes, UTF_8);
                 System.out.println("DecryptedMsg Receive: " + decryptedMessage);
                 String[] decryptedMessageParts = decryptedMessage.split("\\|\\|");
                 client.setTag(Integer.parseInt(decryptedMessageParts[2]));
                 client.setId(Integer.parseInt(decryptedMessageParts[1]));
                 client.setSymmetricKey(newSecretKey(client.getSymmetricKey(), client.getSalt()));
                 System.out.println(client.getName() + ": " + decryptedMessageParts[0]);
+                receivedMessages.add(client.getName() + ": " + decryptedMessageParts[0]);
             }
         }
+    }
+
+    public void updateMessagesGUI(){
+        String messagesOutput = "";
+        for(String msg : receivedMessages){
+            messagesOutput += msg + "\n";
+        }
+        messagesTextArea.setText(messagesOutput);
     }
 
     public void run() {
@@ -187,6 +251,7 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
         while(true){
             try {
                 receiveMessage();
+                updateMessagesGUI();
             } catch (RemoteException e) {
                 throw new RuntimeException(e);
             } catch (NoSuchAlgorithmException e) {
@@ -279,5 +344,9 @@ public class Client extends UnicastRemoteObject implements ClientInt, Serializab
 
     public void setId(int id){
         this.id = id;
+    }
+
+    public List<String> getReceivedMessages(){
+       return receivedMessages;
     }
 }

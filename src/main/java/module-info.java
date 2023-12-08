@@ -1,4 +1,4 @@
-module com.example.guiprojectgs {
+module Client {
     requires javafx.controls;
     requires javafx.fxml;
 
@@ -6,6 +6,7 @@ module com.example.guiprojectgs {
     requires java.rmi;
     requires java.xml.bind;
 
-    opens com.example.guiprojectgs to javafx.fxml;
-    exports com.example.guiprojectgs;
+    opens Client to javafx.fxml;
+    exports Client;
+    exports Server;
 }

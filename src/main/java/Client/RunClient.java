@@ -24,7 +24,7 @@ public class RunClient {
         new RunClient();
 
         Registry registry = LocateRegistry.getRegistry("localhost", 1099);
-        ServerInt server = (ServerInt) registry.lookup("Server");
+        ServerInt server = (ServerInt) registry.lookup("server");
         Scanner scanner = new Scanner(System.in);
         Thread thread;
 
